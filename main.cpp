@@ -36,6 +36,14 @@ const int TILE_BOTTOMLEFT = 9;
 const int TILE_LEFT = 10;
 const int TILE_TOPLEFT = 11;
 
+
+//A circle stucture
+struct Circle
+{
+	int x, y;
+	int r;
+};
+
 //Texture wrapper class
 class LTexture
 {
@@ -115,10 +123,10 @@ class Dot
 		static const int DOT_HEIGHT = 20;
 
 		//Maximum axis velocity of the dot
-		static const int DOT_VEL = 10;
+		static const int DOT_VEL = 1;
 
 		//Initializes the variables
-		Dot();
+		Dot(int x, int y);
 
 		//Takes key presses and adjusts the dot's velocity
 		void handleEvent( SDL_Event& e );
@@ -129,12 +137,21 @@ class Dot
 		//Shows the dot on the screen
 		void render();
 
+		//Gets collision circle
+		Circle& getCollider();
+
     private:
-		//Collision box of the dot
-		SDL_Rect mBox;
+		//The X and Y offsets of the dot
+		int mPosX, mPosY;
 
 		//The velocity of the dot
 		int mVelX, mVelY;
+		
+		//Dot's collision circle
+		Circle mCollider;
+
+		//Moves the collision circle relative to the dot's offset
+		void shiftColliders();
 };
 
 //Starts up SDL and creates window
@@ -147,10 +164,13 @@ bool loadMedia( Tile* tiles[] );
 void close( Tile* tiles[] );
 
 //Box collision detector
-bool checkCollision( SDL_Rect a, SDL_Rect b );
+bool checkCollision( Circle& a, SDL_Rect b );
 
 //Checks collision box against set of tiles
-bool touchesWall( SDL_Rect box, Tile* tiles[] );
+bool touchesWall( Circle& circle, Tile* tiles[] );
+
+//Calculates distance squared between two points
+double distanceSquared( int x1, int y1, int x2, int y2 );
 
 //Sets tiles from tile map
 bool setTiles( Tile *tiles[] );
@@ -342,22 +362,26 @@ int Tile::getType()
     return mType;
 }
 
-SDL_Rect Tile::getBox()
+SDL_Rect Tile::getBox()	
 {
     return mBox;
 }
 
-Dot::Dot()
+Dot::Dot( int x, int y)
 {
-    //Initialize the collision box
-    mBox.x = 0;
-    mBox.y = 0;
-	mBox.w = DOT_WIDTH;
-	mBox.h = DOT_HEIGHT;
+    //Initialize the offsets
+    mPosX = x;
+    mPosY = y;
+
+		//Set collision circle size
+		mCollider.r = DOT_WIDTH / 2;
 
     //Initialize the velocity
     mVelX = 0;
     mVelY = 0;
+
+		//Move collider relative to the circle
+		shiftColliders();
 }
 
 void Dot::handleEvent( SDL_Event& e )
@@ -391,30 +415,46 @@ void Dot::handleEvent( SDL_Event& e )
 void Dot::move( Tile *tiles[] )
 {
     //Move the dot left or right
-    mBox.x += mVelX;
+    mPosX += mVelX;
+		shiftColliders();
 
     //If the dot went too far to the left or right or touched a wall
-    if( ( mBox.x < 0 ) || ( mBox.x + DOT_WIDTH > LEVEL_WIDTH ) || touchesWall( mBox, tiles ) )
+    if( ( mPosX - mCollider.r < 0 ) || ( mPosX + mCollider.r > SCREEN_WIDTH ) || touchesWall( mCollider, tiles ) )
     {
         //move back
-        mBox.x -= mVelX;
+        mPosX -= mVelX;
+				shiftColliders();
     }
 
     //Move the dot up or down
-    mBox.y += mVelY;
+    mPosY += mVelY;
+		shiftColliders();
 
     //If the dot went too far up or down or touched a wall
-    if( ( mBox.y < 0 ) || ( mBox.y + DOT_HEIGHT > LEVEL_HEIGHT ) || touchesWall( mBox, tiles ) )
+    if( ( mPosY - mCollider.r < 0 ) || ( mPosY + mCollider.r > SCREEN_HEIGHT ) || touchesWall( mCollider, tiles ) )
     {
         //move back
-        mBox.y -= mVelY;
+        mPosY -= mVelY;
+				shiftColliders();
     }
 }
 
 void Dot::render()
 {
     //Show the dot
-	gDotTexture.render( mBox.x, mBox.y );
+	gDotTexture.render( mPosX - mCollider.r, mPosY - mCollider.r );
+}
+
+Circle& Dot::getCollider()
+{
+	return mCollider;
+}
+
+void Dot::shiftColliders()
+{
+	//Align collider to center of dot
+	mCollider.x = mPosX;
+	mCollider.y = mPosY;
 }
 
 bool init()
@@ -445,8 +485,8 @@ bool init()
 		}
 		else
 		{
-			//Create renderer for window
-			gRenderer = SDL_CreateRenderer( gWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC );
+			//Create renderer for window | SDL_RENDERER_PRESENTVSYNC 
+			gRenderer = SDL_CreateRenderer( gWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 			if( gRenderer == NULL )
 			{
 				printf( "Renderer could not be created! SDL Error: %s\n", SDL_GetError() );
@@ -527,49 +567,48 @@ void close( Tile* tiles[] )
 	SDL_Quit();
 }
 
-bool checkCollision( SDL_Rect a, SDL_Rect b )
+bool checkCollision( Circle& a, SDL_Rect b )
 {
-    //The sides of the rectangles
-    int leftA, leftB;
-    int rightA, rightB;
-    int topA, topB;
-    int bottomA, bottomB;
+    //Closest point on collision box
+    int cX, cY;
 
-    //Calculate the sides of rect A
-    leftA = a.x;
-    rightA = a.x + a.w;
-    topA = a.y;
-    bottomA = a.y + a.h;
-
-    //Calculate the sides of rect B
-    leftB = b.x;
-    rightB = b.x + b.w;
-    topB = b.y;
-    bottomB = b.y + b.h;
-
-    //If any of the sides from A are outside of B
-    if( bottomA <= topB )
+    //Find closest x offset
+    if( a.x < b.x )
     {
-        return false;
+        cX = b.x;
+    }
+    else if( a.x > b.x + b.w )
+    {
+        cX = b.x + b.w;
+    }
+    else
+    {
+        cX = a.x;
     }
 
-    if( topA >= bottomB )
+    //Find closest y offset
+    if( a.y < b.y )
     {
-        return false;
+        cY = b.y;
+    }
+    else if( a.y > b.y + b.h )
+    {
+        cY = b.y + b.h;
+    }
+    else
+    {
+        cY = a.y;
     }
 
-    if( rightA <= leftB )
+    //If the closest point is inside the circle
+    if( distanceSquared( a.x, a.y, cX, cY ) < a.r * a.r )
     {
-        return false;
+        //This box and the circle have collided
+        return true;
     }
 
-    if( leftA >= rightB )
-    {
-        return false;
-    }
-
-    //If none of the sides from A are outside B
-    return true;
+    //If the shapes have not collided
+    return false;
 }
 
 bool setTiles( Tile* tiles[] )
@@ -709,7 +748,7 @@ bool setTiles( Tile* tiles[] )
     return tilesLoaded;
 }
 
-bool touchesWall( SDL_Rect box, Tile* tiles[] )
+bool touchesWall( Circle& circle, Tile* tiles[] )
 {
     //Go through the tiles
     for( int i = 0; i < TOTAL_TILES; ++i )
@@ -718,7 +757,7 @@ bool touchesWall( SDL_Rect box, Tile* tiles[] )
         if( ( tiles[ i ]->getType() >= TILE_CENTER ) && ( tiles[ i ]->getType() <= TILE_TOPLEFT ) )
         {
             //If the collision box touches the wall tile
-            if( checkCollision( box, tiles[ i ]->getBox() ) )
+            if( checkCollision( circle, tiles[ i ]->getBox() ) )
             {
                 return true;
             }
@@ -727,6 +766,13 @@ bool touchesWall( SDL_Rect box, Tile* tiles[] )
 
     //If no wall tiles were touched
     return false;
+}
+
+double distanceSquared( int x1, int y1, int x2, int y2 )
+{
+	int deltaX = x2 - x1;
+	int deltaY = y2 - y1;
+	return deltaX*deltaX + deltaY*deltaY;
 }
 
 int main( int argc, char* args[] )
@@ -755,7 +801,7 @@ int main( int argc, char* args[] )
 			SDL_Event e;
 
 			//The dot that will be moving around on the screen
-			Dot dot;
+			Dot dot( Dot::DOT_WIDTH / 2, Dot::DOT_HEIGHT / 2 );
 
 			//While application is running
 			while( !quit )
