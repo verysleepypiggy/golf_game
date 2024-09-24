@@ -7,14 +7,11 @@ and may not be redistributed without written permission.*/
 #include <stdio.h>
 #include <string>
 #include <fstream>
+#include <iostream>
 
 //Screen dimension constants
 const int SCREEN_WIDTH = 1280;
 const int SCREEN_HEIGHT = 960;
-
-//The dimensions of the level
-const int LEVEL_WIDTH = 1280;
-const int LEVEL_HEIGHT = 960;
 
 //Tile constants
 const int TILE_WIDTH = 80;
@@ -123,7 +120,7 @@ class Dot
 		static const int DOT_HEIGHT = 20;
 
 		//Maximum axis velocity of the dot
-		static const int DOT_VEL = 1;
+		static const int DOT_VEL = 640;
 
 		//Initializes the variables
 		Dot(int x, int y);
@@ -132,7 +129,7 @@ class Dot
 		void handleEvent( SDL_Event& e );
 
 		//Moves the dot and check collision against tiles
-		void move( Tile *tiles[] );
+		void move( Tile *tiles[] , float timeStep);
 
 		//Shows the dot on the screen
 		void render();
@@ -142,16 +139,49 @@ class Dot
 
     private:
 		//The X and Y offsets of the dot
-		int mPosX, mPosY;
+		float mPosX, mPosY;
 
 		//The velocity of the dot
-		int mVelX, mVelY;
+		float mVelX, mVelY;
 		
 		//Dot's collision circle
 		Circle mCollider;
 
 		//Moves the collision circle relative to the dot's offset
 		void shiftColliders();
+};
+
+
+//The application time based timer
+class LTimer
+{
+    public:
+		//Initializes variables
+		LTimer();
+
+		//The various clock actions
+		void start();
+		void stop();
+		void pause();
+		void unpause();
+
+		//Gets the timer's time
+		Uint32 getTicks();
+
+		//Checks the status of the timer
+		bool isStarted();
+		bool isPaused();
+
+    private:
+		//The clock time when the timer started
+		Uint32 mStartTicks;
+
+		//The ticks stored when the timer was paused
+		Uint32 mPausedTicks;
+
+		//The timer status
+		bool mPaused;
+		bool mStarted;
 };
 
 //Starts up SDL and creates window
@@ -167,7 +197,7 @@ void close( Tile* tiles[] );
 bool checkCollision( Circle& a, SDL_Rect b );
 
 //Checks collision box against set of tiles
-bool touchesWall( Circle& circle, Tile* tiles[] );
+Tile* touchesWall( Circle& circle, Tile* tiles[] );
 
 //Calculates distance squared between two points
 double distanceSquared( int x1, int y1, int x2, int y2 );
@@ -412,37 +442,73 @@ void Dot::handleEvent( SDL_Event& e )
     }
 }
 
-void Dot::move( Tile *tiles[] )
+void Dot::move( Tile *tiles[] , float timeStep )
 {
     //Move the dot left or right
-    mPosX += mVelX;
+    mPosX += mVelX * timeStep;
 		shiftColliders();
 
     //If the dot went too far to the left or right or touched a wall
-    if( ( mPosX - mCollider.r < 0 ) || ( mPosX + mCollider.r > SCREEN_WIDTH ) || touchesWall( mCollider, tiles ) )
+    if ( mPosX - mCollider.r < 0 )
     {
         //move back
-        mPosX -= mVelX;
+        mPosX = 0;
 				shiftColliders();
     }
+		else if ( mPosX + mCollider.r > SCREEN_WIDTH )
+		{
+				mPosX = SCREEN_WIDTH - mCollider.r;
+				shiftColliders();
+		}
+		else if ( Tile* tile = touchesWall( mCollider, tiles) ) 
+		{
+			if (tile->getType() >= 9 && tile->getType() <= 11)
+			{
+				mPosX = tile->getBox().x;
+				shiftColliders();
+			}
+			else if (tile->getType() >= 5 && tile->getType() <= 7)
+			{
+				mPosX = tile->getBox().x + tile->getBox().w;
+				shiftColliders();
+			}
+		}
 
     //Move the dot up or down
-    mPosY += mVelY;
+    mPosY += mVelY * timeStep;
 		shiftColliders();
 
     //If the dot went too far up or down or touched a wall
-    if( ( mPosY - mCollider.r < 0 ) || ( mPosY + mCollider.r > SCREEN_HEIGHT ) || touchesWall( mCollider, tiles ) )
+    if ( mPosY - mCollider.r < 0 )
     {
         //move back
-        mPosY -= mVelY;
+        mPosY = 0;
 				shiftColliders();
     }
+		else if ( mPosY + mCollider.r > SCREEN_HEIGHT )
+		{
+				mPosY = SCREEN_HEIGHT - mCollider.r;
+				shiftColliders();
+		}
+		else if ( Tile* tile = touchesWall( mCollider, tiles) ) 
+		{
+			if ((tile->getType() == 11 || tile->getType() == 4 ||  tile->getType() == 5))
+			{
+				mPosY = tile->getBox().y;
+				shiftColliders();
+			}
+			else if ((tile->getType() == 9 || tile->getType() == 8 ||  tile->getType() == 7))
+			{
+				mPosY = tile->getBox().y + tile->getBox().h;
+				shiftColliders();
+			}
+		}
 }
 
 void Dot::render()
 {
     //Show the dot
-	gDotTexture.render( mPosX - mCollider.r, mPosY - mCollider.r );
+	gDotTexture.render( (int) (mPosX - mCollider.r),(int) (mPosY - mCollider.r) );
 }
 
 Circle& Dot::getCollider()
@@ -455,6 +521,108 @@ void Dot::shiftColliders()
 	//Align collider to center of dot
 	mCollider.x = mPosX;
 	mCollider.y = mPosY;
+}
+
+LTimer::LTimer()
+{
+    //Initialize the variables
+    mStartTicks = 0;
+    mPausedTicks = 0;
+
+    mPaused = false;
+    mStarted = false;
+}
+
+void LTimer::start()
+{
+    //Start the timer
+    mStarted = true;
+
+    //Unpause the timer
+    mPaused = false;
+
+    //Get the current clock time
+    mStartTicks = SDL_GetTicks();
+	mPausedTicks = 0;
+}
+
+void LTimer::stop()
+{
+    //Stop the timer
+    mStarted = false;
+
+    //Unpause the timer
+    mPaused = false;
+
+	//Clear tick variables
+	mStartTicks = 0;
+	mPausedTicks = 0;
+}
+
+void LTimer::pause()
+{
+    //If the timer is running and isn't already paused
+    if( mStarted && !mPaused )
+    {
+        //Pause the timer
+        mPaused = true;
+
+        //Calculate the paused ticks
+        mPausedTicks = SDL_GetTicks() - mStartTicks;
+		mStartTicks = 0;
+    }
+}
+
+void LTimer::unpause()
+{
+    //If the timer is running and paused
+    if( mStarted && mPaused )
+    {
+        //Unpause the timer
+        mPaused = false;
+
+        //Reset the starting ticks
+        mStartTicks = SDL_GetTicks() - mPausedTicks;
+
+        //Reset the paused ticks
+        mPausedTicks = 0;
+    }
+}
+
+Uint32 LTimer::getTicks()
+{
+	//The actual timer time
+	Uint32 time = 0;
+
+    //If the timer is running
+    if( mStarted )
+    {
+        //If the timer is paused
+        if( mPaused )
+        {
+            //Return the number of ticks when the timer was paused
+            time = mPausedTicks;
+        }
+        else
+        {
+            //Return the current time minus the start time
+            time = SDL_GetTicks() - mStartTicks;
+        }
+    }
+
+    return time;
+}
+
+bool LTimer::isStarted()
+{
+	//Timer is running and paused or unpaused
+    return mStarted;
+}
+
+bool LTimer::isPaused()
+{
+	//Timer is running and paused
+    return mPaused && mStarted;
 }
 
 bool init()
@@ -666,7 +834,7 @@ bool setTiles( Tile* tiles[] )
 			x += TILE_WIDTH;
 
 			//If we've gone too far
-			if( x >= LEVEL_WIDTH )
+			if( x >= SCREEN_WIDTH )
 			{
 				//Move back
 				x = 0;
@@ -748,7 +916,7 @@ bool setTiles( Tile* tiles[] )
     return tilesLoaded;
 }
 
-bool touchesWall( Circle& circle, Tile* tiles[] )
+Tile* touchesWall( Circle& circle, Tile* tiles[] )
 {
     //Go through the tiles
     for( int i = 0; i < TOTAL_TILES; ++i )
@@ -759,13 +927,13 @@ bool touchesWall( Circle& circle, Tile* tiles[] )
             //If the collision box touches the wall tile
             if( checkCollision( circle, tiles[ i ]->getBox() ) )
             {
-                return true;
+                return tiles[ i ];
             }
         }
     }
 
     //If no wall tiles were touched
-    return false;
+    return NULL;
 }
 
 double distanceSquared( int x1, int y1, int x2, int y2 )
@@ -803,6 +971,8 @@ int main( int argc, char* args[] )
 			//The dot that will be moving around on the screen
 			Dot dot( Dot::DOT_WIDTH / 2, Dot::DOT_HEIGHT / 2 );
 
+			LTimer stepTimer;
+
 			//While application is running
 			while( !quit )
 			{
@@ -819,8 +989,13 @@ int main( int argc, char* args[] )
 					dot.handleEvent( e );
 				}
 
+				//Calculate time step
+				float timeStep = stepTimer.getTicks() / 1000.f;
+
 				//Move the dot
-				dot.move( tileSet );
+				dot.move( tileSet, timeStep);
+
+				stepTimer.start();
 
 				//Clear screen
 				SDL_SetRenderDrawColor( gRenderer, 0xFF, 0xFF, 0xFF, 0xFF );
