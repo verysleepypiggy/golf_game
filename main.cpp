@@ -120,7 +120,7 @@ class Dot
 		static const int DOT_HEIGHT = 20;
 
 		//Maximum axis velocity of the dot
-		static const int DOT_VEL = 640;
+		static const int DOT_VEL = 300;
 
 		//Initializes the variables
 		Dot(int x, int y);
@@ -197,7 +197,7 @@ void close( Tile* tiles[] );
 bool checkCollision( Circle& a, SDL_Rect b );
 
 //Checks collision box against set of tiles
-Tile* touchesWall( Circle& circle, Tile* tiles[] );
+bool touchesWall( Circle& circle, Tile* tiles[] );
 
 //Calculates distance squared between two points
 double distanceSquared( int x1, int y1, int x2, int y2 );
@@ -428,7 +428,7 @@ void Dot::handleEvent( SDL_Event& e )
             case SDLK_RIGHT: mVelX += DOT_VEL; break;
         }
     }
-    //If a key was released
+    // //If a key was released
     else if( e.type == SDL_KEYUP && e.key.repeat == 0 )
     {
         //Adjust the velocity
@@ -445,70 +445,56 @@ void Dot::handleEvent( SDL_Event& e )
 void Dot::move( Tile *tiles[] , float timeStep )
 {
     //Move the dot left or right
-    mPosX += mVelX * timeStep;
+    mPosX += (mVelX * timeStep);
 		shiftColliders();
 
-    //If the dot went too far to the left or right or touched a wall
-    if ( mPosX - mCollider.r < 0 )
+    //If the dot went too far to the left or right
+    if( mPosX < DOT_WIDTH / 2 )
     {
-        //move back
-        mPosX = 0;
-				shiftColliders();
+        mPosX = DOT_WIDTH / 2;
+				//shiftColliders();
     }
-		else if ( mPosX + mCollider.r > SCREEN_WIDTH )
+    else if( mPosX > SCREEN_WIDTH - (DOT_WIDTH / 2) )
+    {
+        mPosX = SCREEN_WIDTH - (DOT_WIDTH / 2);
+				//shiftColliders();
+    }
+		else if (touchesWall( mCollider, tiles )) 
 		{
-				mPosX = SCREEN_WIDTH - mCollider.r;
-				shiftColliders();
-		}
-		else if ( Tile* tile = touchesWall( mCollider, tiles) ) 
-		{
-			if (tile->getType() >= 9 && tile->getType() <= 11)
-			{
-				mPosX = tile->getBox().x;
-				shiftColliders();
-			}
-			else if (tile->getType() >= 5 && tile->getType() <= 7)
-			{
-				mPosX = tile->getBox().x + tile->getBox().w;
-				shiftColliders();
-			}
+			//mVelX = -mVelX;
+
+			mPosX -= (mVelX * timeStep);
+			//shiftColliders();
 		}
 
     //Move the dot up or down
-    mPosY += mVelY * timeStep;
+    mPosY += (mVelY * timeStep);
 		shiftColliders();
 
-    //If the dot went too far up or down or touched a wall
-    if ( mPosY - mCollider.r < 0 )
+    // //If the dot went too far up or down or touched a wall
+		if( mPosY < DOT_WIDTH / 2 )
     {
-        //move back
-        mPosY = 0;
-				shiftColliders();
+        mPosY = DOT_WIDTH / 2;
+				//shiftColliders();
     }
-		else if ( mPosY + mCollider.r > SCREEN_HEIGHT )
+    else if( mPosY > SCREEN_HEIGHT - (DOT_WIDTH / 2 ))
+    {
+        mPosY = SCREEN_HEIGHT - (DOT_WIDTH / 2);
+				//shiftColliders();
+    }
+		else if (touchesWall( mCollider, tiles )) 
 		{
-				mPosY = SCREEN_HEIGHT - mCollider.r;
-				shiftColliders();
-		}
-		else if ( Tile* tile = touchesWall( mCollider, tiles) ) 
-		{
-			if ((tile->getType() == 11 || tile->getType() == 4 ||  tile->getType() == 5))
-			{
-				mPosY = tile->getBox().y;
-				shiftColliders();
-			}
-			else if ((tile->getType() == 9 || tile->getType() == 8 ||  tile->getType() == 7))
-			{
-				mPosY = tile->getBox().y + tile->getBox().h;
-				shiftColliders();
-			}
+			//mVelY = -mVelY;
+
+			mPosY -= (mVelY * timeStep);
+			//shiftColliders();
 		}
 }
 
 void Dot::render()
 {
     //Show the dot
-	gDotTexture.render( (int) (mPosX - mCollider.r),(int) (mPosY - mCollider.r) );
+	gDotTexture.render( int(mPosX - mCollider.r), int(mPosY - mCollider.r));
 }
 
 Circle& Dot::getCollider()
@@ -916,7 +902,7 @@ bool setTiles( Tile* tiles[] )
     return tilesLoaded;
 }
 
-Tile* touchesWall( Circle& circle, Tile* tiles[] )
+bool touchesWall( Circle& circle, Tile* tiles[] )
 {
     //Go through the tiles
     for( int i = 0; i < TOTAL_TILES; ++i )
@@ -925,15 +911,15 @@ Tile* touchesWall( Circle& circle, Tile* tiles[] )
         if( ( tiles[ i ]->getType() >= TILE_CENTER ) && ( tiles[ i ]->getType() <= TILE_TOPLEFT ) )
         {
             //If the collision box touches the wall tile
-            if( checkCollision( circle, tiles[ i ]->getBox() ) )
+            if( checkCollision( circle , tiles[ i ]->getBox() ) )
             {
-                return tiles[ i ];
+                return true;
             }
         }
     }
 
     //If no wall tiles were touched
-    return NULL;
+    return false;
 }
 
 double distanceSquared( int x1, int y1, int x2, int y2 )
