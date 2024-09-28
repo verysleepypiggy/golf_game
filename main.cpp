@@ -8,6 +8,7 @@ and may not be redistributed without written permission.*/
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <cmath>
 
 //Screen dimension constants
 const int SCREEN_WIDTH = 1280;
@@ -33,6 +34,38 @@ const int TILE_BOTTOMLEFT = 9;
 const int TILE_LEFT = 10;
 const int TILE_TOPLEFT = 11;
 
+class Vector2D
+{
+	public:
+		float x;
+		float y;
+
+		Vector2D(float x = 0.0f, float y = 0.0f): x(x), y(y) {}
+
+		// Addition of two vectors
+    Vector2D operator+(const Vector2D& other) const {
+        return Vector2D(x + other.x, y + other.y);
+    }
+
+		// Subtract two vectors
+    Vector2D operator-(const Vector2D& other) const {
+        return Vector2D(x - other.x, y - other.y);
+    }
+
+    // Scaling a vector by a scalar
+    Vector2D operator*(float scalar) const {
+        return Vector2D(x * scalar, y * scalar);
+    }
+
+	    // Normalizes the vector (sets its length to 1)
+    void normalize() {
+        float magnitude = std::sqrt(x * x + y * y);
+        if (magnitude > 0.0f) {
+            x /= magnitude;
+            y /= magnitude;
+        }
+    }
+};
 
 //A circle stucture
 struct Circle
@@ -120,7 +153,7 @@ class Dot
 		static const int DOT_HEIGHT = 20;
 
 		//Maximum axis velocity of the dot
-		static const int DOT_VEL = 300;
+		static const int DOT_VEL = 400;
 
 		//Initializes the variables
 		Dot(int x, int y);
@@ -150,7 +183,6 @@ class Dot
 		//Moves the collision circle relative to the dot's offset
 		void shiftColliders();
 };
-
 
 //The application time based timer
 class LTimer
@@ -183,6 +215,8 @@ class LTimer
 		bool mPaused;
 		bool mStarted;
 };
+
+
 
 //Starts up SDL and creates window
 bool init();
@@ -405,6 +439,8 @@ Dot::Dot( int x, int y)
 
 		//Set collision circle size
 		mCollider.r = DOT_WIDTH / 2;
+		mCollider.x = x;
+		mCollider.y = y;
 
     //Initialize the velocity
     mVelX = 0;
@@ -445,6 +481,9 @@ void Dot::handleEvent( SDL_Event& e )
 void Dot::move( Tile *tiles[] , float timeStep )
 {
     //Move the dot left or right
+		float fooX = mPosX;
+		float fooY = mPosY;
+
     mPosX += (mVelX * timeStep);
 		shiftColliders();
 
@@ -452,20 +491,22 @@ void Dot::move( Tile *tiles[] , float timeStep )
     if( mPosX < DOT_WIDTH / 2 )
     {
         mPosX = DOT_WIDTH / 2;
-				//shiftColliders();
+				shiftColliders();
     }
     else if( mPosX > SCREEN_WIDTH - (DOT_WIDTH / 2) )
     {
         mPosX = SCREEN_WIDTH - (DOT_WIDTH / 2);
-				//shiftColliders();
+				shiftColliders();
     }
 		else if (touchesWall( mCollider, tiles )) 
 		{
 			//mVelX = -mVelX;
-
-			mPosX -= (mVelX * timeStep);
-			//shiftColliders();
+			//mPosX -= (mVelX * timeStep);
+			mPosX = 150;
+			shiftColliders();
 		}
+
+
 
     //Move the dot up or down
     mPosY += (mVelY * timeStep);
@@ -475,26 +516,29 @@ void Dot::move( Tile *tiles[] , float timeStep )
 		if( mPosY < DOT_WIDTH / 2 )
     {
         mPosY = DOT_WIDTH / 2;
-				//shiftColliders();
+				shiftColliders();
     }
     else if( mPosY > SCREEN_HEIGHT - (DOT_WIDTH / 2 ))
     {
         mPosY = SCREEN_HEIGHT - (DOT_WIDTH / 2);
-				//shiftColliders();
+				shiftColliders();
     }
 		else if (touchesWall( mCollider, tiles )) 
 		{
 			//mVelY = -mVelY;
-
-			mPosY -= (mVelY * timeStep);
-			//shiftColliders();
+			//mPosY -= (mVelY * timeStep);
+			mPosY = fooY;
+			shiftColliders();
 		}
+		
 }
 
 void Dot::render()
 {
     //Show the dot
-	gDotTexture.render( int(mPosX - mCollider.r), int(mPosY - mCollider.r));
+	gDotTexture.render( (mPosX - mCollider.r), (mPosY - mCollider.r));
+	// std::cout << "rendered at: " << (mPosX - mCollider.r) << ", "  << (mPosY - mCollider.r) << std::endl;
+	// std::cout << "collision at: " << mPosX << ", " << mPosY << std::endl;
 }
 
 Circle& Dot::getCollider()
@@ -505,8 +549,9 @@ Circle& Dot::getCollider()
 void Dot::shiftColliders()
 {
 	//Align collider to center of dot
-	mCollider.x = mPosX;
-	mCollider.y = mPosY;
+	mCollider.x = (mPosX);
+	mCollider.y = (mPosY);
+	//std::cout << "collsion point at: " << (mCollider.x) << (mCollider.y) << std::endl;
 }
 
 LTimer::LTimer()
@@ -724,7 +769,7 @@ void close( Tile* tiles[] )
 bool checkCollision( Circle& a, SDL_Rect b )
 {
     //Closest point on collision box
-    int cX, cY;
+    float cX, cY;
 
     //Find closest x offset
     if( a.x < b.x )
