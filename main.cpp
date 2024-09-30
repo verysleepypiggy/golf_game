@@ -1,6 +1,3 @@
-/*This source code copyrighted by Lazy Foo' Productions 2004-2024
-and may not be redistributed without written permission.*/
-
 //Using SDL, SDL_image, standard IO, strings, and file streams
 #include <SDL.h>
 #include <SDL_image.h>
@@ -11,61 +8,19 @@ and may not be redistributed without written permission.*/
 #include <cmath>
 
 //Screen dimension constants
-const int SCREEN_WIDTH = 1280;
-const int SCREEN_HEIGHT = 960;
+const int SCREEN_WIDTH = 560;
+const int SCREEN_HEIGHT = 880;
 
 //Tile constants
 const int TILE_WIDTH = 80;
 const int TILE_HEIGHT = 80;
-const int TOTAL_TILES = 192;
-const int TOTAL_TILE_SPRITES = 12;
+const int TOTAL_TILES = 77;
+const int TOTAL_TILE_SPRITES = 3;
 
-//The different tile sprites
-const int TILE_RED = 0;
+//The different tile sprite
+const int TILE_BLACK = 0;
 const int TILE_GREEN = 1;
-const int TILE_BLUE = 2;
-const int TILE_CENTER = 3;
-const int TILE_TOP = 4;
-const int TILE_TOPRIGHT = 5;
-const int TILE_RIGHT = 6;
-const int TILE_BOTTOMRIGHT = 7;
-const int TILE_BOTTOM = 8;
-const int TILE_BOTTOMLEFT = 9;
-const int TILE_LEFT = 10;
-const int TILE_TOPLEFT = 11;
-
-class Vector2D
-{
-	public:
-		float x;
-		float y;
-
-		Vector2D(float x = 0.0f, float y = 0.0f): x(x), y(y) {}
-
-		// Addition of two vectors
-    Vector2D operator+(const Vector2D& other) const {
-        return Vector2D(x + other.x, y + other.y);
-    }
-
-		// Subtract two vectors
-    Vector2D operator-(const Vector2D& other) const {
-        return Vector2D(x - other.x, y - other.y);
-    }
-
-    // Scaling a vector by a scalar
-    Vector2D operator*(float scalar) const {
-        return Vector2D(x * scalar, y * scalar);
-    }
-
-	    // Normalizes the vector (sets its length to 1)
-    void normalize() {
-        float magnitude = std::sqrt(x * x + y * y);
-        if (magnitude > 0.0f) {
-            x /= magnitude;
-            y /= magnitude;
-        }
-    }
-};
+const int TILE_YELLOW = 2;
 
 //A circle stucture
 struct Circle
@@ -86,7 +41,7 @@ class LTexture
 
 		//Loads image at specified path
 		bool loadFromFile( std::string path );
-		
+
 		#if defined(SDL_TTF_MAJOR_VERSION)
 		//Creates image from font string
 		bool loadFromRenderedText( std::string textureText, SDL_Color textColor );
@@ -103,7 +58,7 @@ class LTexture
 
 		//Set alpha modulation
 		void setAlpha( Uint8 alpha );
-		
+
 		//Renders texture at given point
 		void render( int x, int y, SDL_Rect* clip = NULL, double angle = 0.0, SDL_Point* center = NULL, SDL_RendererFlip flip = SDL_FLIP_NONE );
 
@@ -155,6 +110,10 @@ class Dot
 		//Maximum axis velocity of the dot
 		static const int DOT_VEL = 400;
 
+		//win check
+		bool touchingHole = false;
+		int numStrokes = 0;
+
 		//Initializes the variables
 		Dot(int x, int y);
 
@@ -181,7 +140,7 @@ class Dot
 		int mouseY_down;
 		int mouseX_up;
 		int mouseY_up;
-		
+
 		//Dot's collision circle
 		Circle mCollider;
 
@@ -221,8 +180,6 @@ class LTimer
 		bool mStarted;
 };
 
-
-
 //Starts up SDL and creates window
 bool init();
 
@@ -237,6 +194,9 @@ bool checkCollision( Circle& a, SDL_Rect b );
 
 //Checks collision box against set of tiles
 bool touchesWall( Circle& circle, Tile* tiles[] );
+
+//Checks collision box against hole tile
+bool touchesHole( Circle& circle, Tile* tiles[] );
 
 //Calculates distance squared between two points
 double distanceSquared( int x1, int y1, int x2, int y2 );
@@ -341,7 +301,7 @@ bool LTexture::loadFromRenderedText( std::string textureText, SDL_Color textColo
 		printf( "Unable to render text surface! SDL_ttf Error: %s\n", TTF_GetError() );
 	}
 
-	
+
 	//Return success
 	return mTexture != NULL;
 }
@@ -370,7 +330,7 @@ void LTexture::setBlendMode( SDL_BlendMode blending )
 	//Set blending function
 	SDL_SetTextureBlendMode( mTexture, blending );
 }
-		
+
 void LTexture::setAlpha( Uint8 alpha )
 {
 	//Modulate texture alpha
@@ -420,10 +380,6 @@ Tile::Tile( int x, int y, int tileType )
 void Tile::render()
 {
 	gTileTexture.render( mBox.x, mBox.y, &gTileClips[ mType ] );
-    {
-        //Show the tile
-        
-    }
 }
 
 int Tile::getType()
@@ -431,7 +387,7 @@ int Tile::getType()
     return mType;
 }
 
-SDL_Rect Tile::getBox()	
+SDL_Rect Tile::getBox()
 {
     return mBox;
 }
@@ -457,36 +413,10 @@ Dot::Dot( int x, int y)
 
 void Dot::handleEvent( SDL_Event& e )
 {
-    //If a key was pressed
-		// if( e.type == SDL_KEYDOWN && e.key.repeat == 0 )
-    // {
-    //     //Adjust the velocity
-    //     switch( e.key.keysym.sym )
-    //     {
-    //         case SDLK_UP: mVelY -= DOT_VEL; break;
-    //         case SDLK_DOWN: mVelY += DOT_VEL; break;
-    //         case SDLK_LEFT: mVelX -= DOT_VEL; break;
-    //         case SDLK_RIGHT: mVelX += DOT_VEL; break;
-    //     }
-    // }
-    // //If a key was released
-    // else if( e.type == SDL_KEYUP && e.key.repeat == 0 )
-    // {
-    //     //Adjust the velocity
-    //     switch( e.key.keysym.sym )
-    //     {
-    //         case SDLK_UP: mVelY += DOT_VEL; break;
-    //         case SDLK_DOWN: mVelY -= DOT_VEL; break;
-    //         case SDLK_LEFT: mVelX += DOT_VEL; break;
-    //         case SDLK_RIGHT: mVelX -= DOT_VEL; break;
-    //     }
-    // }
-
-
 		if (mVelX == 0 && mVelY == 0) {
 			if ( e.type == SDL_MOUSEBUTTONDOWN)
 			{
-				
+
 				mouseX_down = e.button.x;
 				mouseY_down = e.button.y;
 
@@ -500,9 +430,10 @@ void Dot::handleEvent( SDL_Event& e )
 				changeX = mouseX_down - mouseX_up;
 				changeY = mouseY_down - mouseY_up;
 
-				mVelX += changeX * 2;
-				mVelY += changeY * 2;
-				
+				mVelX += changeX * 3;
+				mVelY += changeY * 3;
+
+				numStrokes++;
 			}
 		}
 
@@ -511,11 +442,10 @@ void Dot::handleEvent( SDL_Event& e )
 void Dot::move( Tile *tiles[] , float timeStep )
 {
     //Move the dot left or right
-		float fooX = mPosX;
-		float fooY = mPosY;
+		float oldX = mPosX;
+		float oldY = mPosY;
 
     mPosX += (mVelX * timeStep);
-		mVelX = mVelX * 0.99;
 
 		shiftColliders();
 
@@ -530,21 +460,16 @@ void Dot::move( Tile *tiles[] , float timeStep )
         mPosX = SCREEN_WIDTH - (DOT_WIDTH / 2);
 				mVelX = -mVelX;
     }
-		else if (touchesWall( mCollider, tiles )) 
+		else if (touchesWall( mCollider, tiles ))
 		{
-			mPosX = fooX;
+			mPosX = oldX;
 			mVelX = -mVelX;
-			// std::cout << "collsion point at: " << int(mCollider.x) << " , " << int(mCollider.y) << std::endl;
-			// std::cout << "render point at: " << int(mPosX - mCollider.r) << " , " << int(mPosY - mCollider.r) << std::endl;
 		}
-		std::cout << "The x is: " << mVelX << std::endl;
-		std::cout << "The y is: " << mVelY << std::endl;
 
 		shiftColliders();
 
     //Move the dot up or down
     mPosY += (mVelY * timeStep);
-		mVelY = mVelY * 0.99;
 		shiftColliders();
 
     // //If the dot went too far up or down or touched a wall
@@ -558,14 +483,21 @@ void Dot::move( Tile *tiles[] , float timeStep )
         mPosY = SCREEN_HEIGHT - (DOT_WIDTH / 2);
 				mVelY = -mVelY;
     }
-		else if (touchesWall( mCollider, tiles )) 
+		else if (touchesWall( mCollider, tiles ))
 		{
-			mPosY = fooY;
+			mPosY = oldY;
 			mVelY = -mVelY;
 		}
 		shiftColliders();
 
-		if (mVelX < 20 && mVelX > -20 && mVelY < 20 && mVelY > -20) 
+		if (touchesHole(mCollider, tiles)) {
+			touchingHole = true;
+		}
+
+		mVelX = mVelX * 0.97;
+		mVelY = mVelY * 0.97;
+
+		if (mVelX < 20 && mVelX > -20 && mVelY < 20 && mVelY > -20)
 		{
 			mVelX = 0;
 			mVelY = 0;
@@ -723,7 +655,7 @@ bool init()
 		}
 		else
 		{
-			//Create renderer for window | SDL_RENDERER_PRESENTVSYNC 
+			//Create renderer for window | SDL_RENDERER_PRESENTVSYNC
 			gRenderer = SDL_CreateRenderer( gWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 			if( gRenderer == NULL )
 			{
@@ -794,7 +726,7 @@ void close( Tile* tiles[] )
 	gDotTexture.free();
 	gTileTexture.free();
 
-	//Destroy window	
+	//Destroy window
 	SDL_DestroyRenderer( gRenderer );
 	SDL_DestroyWindow( gWindow );
 	gWindow = NULL;
@@ -858,7 +790,7 @@ bool setTiles( Tile* tiles[] )
     int x = 0, y = 0;
 
     //Open the map
-    std::ifstream map( "./lazy.map" );
+    std::ifstream map( "./golf.map" );
 
     //If the map couldn't be loaded
     if( map.fail() )
@@ -913,69 +845,24 @@ bool setTiles( Tile* tiles[] )
 				y += TILE_HEIGHT;
 			}
 		}
-		
+
 		//Clip the sprite sheet
 		if( tilesLoaded )
 		{
-			gTileClips[ TILE_RED ].x = 0;
-			gTileClips[ TILE_RED ].y = 0;
-			gTileClips[ TILE_RED ].w = TILE_WIDTH;
-			gTileClips[ TILE_RED ].h = TILE_HEIGHT;
+			gTileClips[ TILE_BLACK ].x = 0;
+			gTileClips[ TILE_BLACK ].y = 0;
+			gTileClips[ TILE_BLACK ].w = TILE_WIDTH;
+			gTileClips[ TILE_BLACK ].h = TILE_HEIGHT;
 
 			gTileClips[ TILE_GREEN ].x = 0;
 			gTileClips[ TILE_GREEN ].y = 80;
 			gTileClips[ TILE_GREEN ].w = TILE_WIDTH;
 			gTileClips[ TILE_GREEN ].h = TILE_HEIGHT;
 
-			gTileClips[ TILE_BLUE ].x = 0;
-			gTileClips[ TILE_BLUE ].y = 160;
-			gTileClips[ TILE_BLUE ].w = TILE_WIDTH;
-			gTileClips[ TILE_BLUE ].h = TILE_HEIGHT;
-
-			gTileClips[ TILE_TOPLEFT ].x = 80;
-			gTileClips[ TILE_TOPLEFT ].y = 0;
-			gTileClips[ TILE_TOPLEFT ].w = TILE_WIDTH;
-			gTileClips[ TILE_TOPLEFT ].h = TILE_HEIGHT;
-
-			gTileClips[ TILE_LEFT ].x = 80;
-			gTileClips[ TILE_LEFT ].y = 80;
-			gTileClips[ TILE_LEFT ].w = TILE_WIDTH;
-			gTileClips[ TILE_LEFT ].h = TILE_HEIGHT;
-
-			gTileClips[ TILE_BOTTOMLEFT ].x = 80;
-			gTileClips[ TILE_BOTTOMLEFT ].y = 160;
-			gTileClips[ TILE_BOTTOMLEFT ].w = TILE_WIDTH;
-			gTileClips[ TILE_BOTTOMLEFT ].h = TILE_HEIGHT;
-
-			gTileClips[ TILE_TOP ].x = 160;
-			gTileClips[ TILE_TOP ].y = 0;
-			gTileClips[ TILE_TOP ].w = TILE_WIDTH;
-			gTileClips[ TILE_TOP ].h = TILE_HEIGHT;
-
-			gTileClips[ TILE_CENTER ].x = 160;
-			gTileClips[ TILE_CENTER ].y = 80;
-			gTileClips[ TILE_CENTER ].w = TILE_WIDTH;
-			gTileClips[ TILE_CENTER ].h = TILE_HEIGHT;
-
-			gTileClips[ TILE_BOTTOM ].x = 160;
-			gTileClips[ TILE_BOTTOM ].y = 160;
-			gTileClips[ TILE_BOTTOM ].w = TILE_WIDTH;
-			gTileClips[ TILE_BOTTOM ].h = TILE_HEIGHT;
-
-			gTileClips[ TILE_TOPRIGHT ].x = 240;
-			gTileClips[ TILE_TOPRIGHT ].y = 0;
-			gTileClips[ TILE_TOPRIGHT ].w = TILE_WIDTH;
-			gTileClips[ TILE_TOPRIGHT ].h = TILE_HEIGHT;
-
-			gTileClips[ TILE_RIGHT ].x = 240;
-			gTileClips[ TILE_RIGHT ].y = 80;
-			gTileClips[ TILE_RIGHT ].w = TILE_WIDTH;
-			gTileClips[ TILE_RIGHT ].h = TILE_HEIGHT;
-
-			gTileClips[ TILE_BOTTOMRIGHT ].x = 240;
-			gTileClips[ TILE_BOTTOMRIGHT ].y = 160;
-			gTileClips[ TILE_BOTTOMRIGHT ].w = TILE_WIDTH;
-			gTileClips[ TILE_BOTTOMRIGHT ].h = TILE_HEIGHT;
+			gTileClips[ TILE_YELLOW ].x = 0;
+			gTileClips[ TILE_YELLOW ].y = 160;
+			gTileClips[ TILE_YELLOW ].w = TILE_WIDTH;
+			gTileClips[ TILE_YELLOW ].h = TILE_HEIGHT;
 		}
 	}
 
@@ -992,7 +879,7 @@ bool touchesWall( Circle& circle, Tile* tiles[] )
     for( int i = 0; i < TOTAL_TILES; ++i )
     {
         //If the tile is a wall type tile
-        if( ( tiles[ i ]->getType() >= TILE_CENTER ) && ( tiles[ i ]->getType() <= TILE_TOPLEFT ) )
+        if( ( tiles[ i ]->getType() == TILE_BLACK ))
         {
             //If the collision box touches the wall tile
             if( checkCollision( circle , tiles[ i ]->getBox() ) )
@@ -1003,6 +890,26 @@ bool touchesWall( Circle& circle, Tile* tiles[] )
     }
 
     //If no wall tiles were touched
+    return false;
+}
+
+bool touchesHole( Circle& circle, Tile* tiles[] )
+{
+    //Go through the tiles
+    for( int i = 0; i < TOTAL_TILES; ++i )
+    {
+        //If the tile is a hole type tile
+        if( ( tiles[ i ]->getType() == TILE_YELLOW ))
+        {
+            //If the collision box touches the hole tile
+            if( checkCollision( circle , tiles[ i ]->getBox() ) )
+            {
+                return true;
+            }
+        }
+    }
+
+    //If no hole tiles were touched
     return false;
 }
 
@@ -1031,20 +938,21 @@ int main( int argc, char* args[] )
 			printf( "Failed to load media!\n" );
 		}
 		else
-		{	
+		{
 			//Main loop flag
 			bool quit = false;
+			bool win = false;
 
 			//Event handler
 			SDL_Event e;
 
 			//The dot that will be moving around on the screen
-			Dot dot( Dot::DOT_WIDTH / 2, Dot::DOT_HEIGHT / 2 );
+			Dot dot( SCREEN_WIDTH / 2, SCREEN_HEIGHT - 80);
 
 			LTimer stepTimer;
 
 			//While application is running
-			while( !quit )
+			while( !quit and !win)
 			{
 				//Handle events on queue
 				while( SDL_PollEvent( &e ) != 0 )
@@ -1082,9 +990,20 @@ int main( int argc, char* args[] )
 
 				//Update screen
 				SDL_RenderPresent( gRenderer );
+
+				if (dot.touchingHole == true)
+				{
+					win = true;
+				}
+			}
+
+			while (!quit and win) {
+				 std::cout << "U WON!" << std::endl;
+				 std::cout << "Strokes: " << dot.numStrokes << std::endl;
+				 quit = true;
 			}
 		}
-		
+
 		//Free resources and close SDL
 		close( tileSet );
 	}
