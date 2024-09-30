@@ -70,8 +70,8 @@ class Vector2D
 //A circle stucture
 struct Circle
 {
-	int x, y;
-	int r;
+	float x, y;
+	float r;
 };
 
 //Texture wrapper class
@@ -176,6 +176,11 @@ class Dot
 
 		//The velocity of the dot
 		float mVelX, mVelY;
+
+		int mouseX_down;
+		int mouseY_down;
+		int mouseX_up;
+		int mouseY_up;
 		
 		//Dot's collision circle
 		Circle mCollider;
@@ -453,29 +458,54 @@ Dot::Dot( int x, int y)
 void Dot::handleEvent( SDL_Event& e )
 {
     //If a key was pressed
-	if( e.type == SDL_KEYDOWN && e.key.repeat == 0 )
-    {
-        //Adjust the velocity
-        switch( e.key.keysym.sym )
-        {
-            case SDLK_UP: mVelY -= DOT_VEL; break;
-            case SDLK_DOWN: mVelY += DOT_VEL; break;
-            case SDLK_LEFT: mVelX -= DOT_VEL; break;
-            case SDLK_RIGHT: mVelX += DOT_VEL; break;
-        }
-    }
+		// if( e.type == SDL_KEYDOWN && e.key.repeat == 0 )
+    // {
+    //     //Adjust the velocity
+    //     switch( e.key.keysym.sym )
+    //     {
+    //         case SDLK_UP: mVelY -= DOT_VEL; break;
+    //         case SDLK_DOWN: mVelY += DOT_VEL; break;
+    //         case SDLK_LEFT: mVelX -= DOT_VEL; break;
+    //         case SDLK_RIGHT: mVelX += DOT_VEL; break;
+    //     }
+    // }
     // //If a key was released
-    else if( e.type == SDL_KEYUP && e.key.repeat == 0 )
-    {
-        //Adjust the velocity
-        switch( e.key.keysym.sym )
-        {
-            case SDLK_UP: mVelY += DOT_VEL; break;
-            case SDLK_DOWN: mVelY -= DOT_VEL; break;
-            case SDLK_LEFT: mVelX += DOT_VEL; break;
-            case SDLK_RIGHT: mVelX -= DOT_VEL; break;
-        }
-    }
+    // else if( e.type == SDL_KEYUP && e.key.repeat == 0 )
+    // {
+    //     //Adjust the velocity
+    //     switch( e.key.keysym.sym )
+    //     {
+    //         case SDLK_UP: mVelY += DOT_VEL; break;
+    //         case SDLK_DOWN: mVelY -= DOT_VEL; break;
+    //         case SDLK_LEFT: mVelX += DOT_VEL; break;
+    //         case SDLK_RIGHT: mVelX -= DOT_VEL; break;
+    //     }
+    // }
+
+
+		if (mVelX == 0 && mVelY == 0) {
+			if ( e.type == SDL_MOUSEBUTTONDOWN)
+			{
+				
+				mouseX_down = e.button.x;
+				mouseY_down = e.button.y;
+
+			}
+			if ( e.type == SDL_MOUSEBUTTONUP)
+			{
+				mouseX_up = e.button.x;
+				mouseY_up = e.button.y;
+				float changeX;
+				float changeY;
+				changeX = mouseX_down - mouseX_up;
+				changeY = mouseY_down - mouseY_up;
+
+				mVelX += changeX * 2;
+				mVelY += changeY * 2;
+				
+			}
+		}
+
 }
 
 void Dot::move( Tile *tiles[] , float timeStep )
@@ -485,58 +515,67 @@ void Dot::move( Tile *tiles[] , float timeStep )
 		float fooY = mPosY;
 
     mPosX += (mVelX * timeStep);
+		mVelX = mVelX * 0.99;
+
 		shiftColliders();
 
     //If the dot went too far to the left or right
     if( mPosX < DOT_WIDTH / 2 )
     {
         mPosX = DOT_WIDTH / 2;
-				shiftColliders();
+				mVelX = -mVelX;
     }
     else if( mPosX > SCREEN_WIDTH - (DOT_WIDTH / 2) )
     {
         mPosX = SCREEN_WIDTH - (DOT_WIDTH / 2);
-				shiftColliders();
+				mVelX = -mVelX;
     }
 		else if (touchesWall( mCollider, tiles )) 
 		{
-			//mVelX = -mVelX;
-			//mPosX -= (mVelX * timeStep);
-			mPosX = 150;
-			shiftColliders();
+			mPosX = fooX;
+			mVelX = -mVelX;
+			// std::cout << "collsion point at: " << int(mCollider.x) << " , " << int(mCollider.y) << std::endl;
+			// std::cout << "render point at: " << int(mPosX - mCollider.r) << " , " << int(mPosY - mCollider.r) << std::endl;
 		}
+		std::cout << "The x is: " << mVelX << std::endl;
+		std::cout << "The y is: " << mVelY << std::endl;
 
-
+		shiftColliders();
 
     //Move the dot up or down
     mPosY += (mVelY * timeStep);
+		mVelY = mVelY * 0.99;
 		shiftColliders();
 
     // //If the dot went too far up or down or touched a wall
 		if( mPosY < DOT_WIDTH / 2 )
     {
         mPosY = DOT_WIDTH / 2;
-				shiftColliders();
+				mVelY = -mVelY;
     }
     else if( mPosY > SCREEN_HEIGHT - (DOT_WIDTH / 2 ))
     {
         mPosY = SCREEN_HEIGHT - (DOT_WIDTH / 2);
-				shiftColliders();
+				mVelY = -mVelY;
     }
 		else if (touchesWall( mCollider, tiles )) 
 		{
-			//mVelY = -mVelY;
-			//mPosY -= (mVelY * timeStep);
 			mPosY = fooY;
-			shiftColliders();
+			mVelY = -mVelY;
 		}
-		
+		shiftColliders();
+
+		if (mVelX < 20 && mVelX > -20 && mVelY < 20 && mVelY > -20) 
+		{
+			mVelX = 0;
+			mVelY = 0;
+		}
 }
 
 void Dot::render()
 {
     //Show the dot
-	gDotTexture.render( (mPosX - mCollider.r), (mPosY - mCollider.r));
+	gDotTexture.render( int(mPosX - mCollider.r), int(mPosY - mCollider.r));
 	// std::cout << "rendered at: " << (mPosX - mCollider.r) << ", "  << (mPosY - mCollider.r) << std::endl;
 	// std::cout << "collision at: " << mPosX << ", " << mPosY << std::endl;
 }
@@ -549,8 +588,8 @@ Circle& Dot::getCollider()
 void Dot::shiftColliders()
 {
 	//Align collider to center of dot
-	mCollider.x = (mPosX);
-	mCollider.y = (mPosY);
+	mCollider.x = int(mPosX);
+	mCollider.y = int(mPosY);
 	//std::cout << "collsion point at: " << (mCollider.x) << (mCollider.y) << std::endl;
 }
 
